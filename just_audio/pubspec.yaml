@@ -8,8 +8,16 @@ environment:
   flutter: ">=1.12.13+hotfix.5"
 
 dependencies:
-  just_audio_platform_interface: ^1.1.1
-  just_audio_web: ^0.1.1
+  just_audio_platform_interface: #^1.1.1
+    git:
+      url: git@github.com:App2Sales/just_audio.git
+      path: just_audio_platform_interface
+      ref: symlink
+  just_audio_web: #^0.1.1
+    git:
+      url: git@github.com:App2Sales/just_audio.git
+      path: just_audio_web
+      ref: symlink
   audio_session: ^0.0.9
   rxdart: ^0.24.1
   path: ^1.6.4

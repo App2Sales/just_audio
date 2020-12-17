@@ -11,7 +11,11 @@ flutter:
         fileName: just_audio_web.dart
 
 dependencies:
-  just_audio_platform_interface: ^1.1.1
+  just_audio_platform_interface: #^1.1.1
+    git:
+      url: git@github.com:App2Sales/just_audio.git
+      path: just_audio_platform_interface
+      ref: symlink
   flutter:
     sdk: flutter
   flutter_web_plugins:
