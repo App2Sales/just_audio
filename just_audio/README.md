@@ -293,6 +293,16 @@ if (Platform.isAndroid && (await Permission.microphone.request()).isGranted) { .
 
 ### iOS
 
+If you wish to connect to non-HTTPS URLs, or if you use a feature that depends on the proxy such as headers, caching or stream audio sources, add the following to your `Info.plist` file:
+
+```xml
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+</dict>
+```
+
 Using the default configuration, the App Store will detect that your app uses the AVAudioSession API which includes a microphone API, and for privacy reasons it will ask you to describe your app's usage of the microphone. If your app does indeed use the microphone, you can describe your usage by editing the `Info.plist` file as follows:
 
 ```xml
@@ -300,7 +310,11 @@ Using the default configuration, the App Store will detect that your app uses th
 <string>... explain why the app uses the microphone here ...</string>
 ```
 
-But if your app does not use the microphone, you can pass a build option to "compile out" any microphone code so that the App Store won't ask for the above usage description. To do so, edit your `ios/Podfile` as follows:
+But if your app doesn't use the microphone, you can pass a build option to "compile out" any microphone code so that the App Store won't ask for the above usage description. This can be done with either CocoaPods or SwiftPM builds.
+
+#### CocoaPods
+
+Edit your `ios/Podfile` as follows:
 
 ```ruby
 post_install do |installer|
@@ -319,17 +333,21 @@ post_install do |installer|
 end
 ```
 
-If you wish to connect to non-HTTPS URLs, or if you use a feature that depends on the proxy such as headers, caching or stream audio sources, add the following to your `Info.plist` file:
+#### SwiftPM
 
-```xml
-<key>NSAppTransportSecurity</key>
-<dict>
-    <key>NSAllowsArbitraryLoads</key>
-    <true/>
-</dict>
+Run `flutter clean` to force SwiftPM to pick up your new settings:
+
+```
+flutter clean
 ```
 
-The iOS player relies on server headers (e.g. `Content-Type`, `Content-Length` and [byte range requests](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/CreatingVideoforSafarioniPhone/CreatingVideoforSafarioniPhone.html#//apple_ref/doc/uid/TP40006514-SW6)) to know how to decode the file and where applicable to report its duration. In the case of files, iOS relies on the file extension.
+Export the environment variable `AUDIO_SESSION_MICROPHONE=0` before running your build command. E.g. Using the bash command line:
+
+```
+AUDIO_SESSION_MICROPHONE=0 flutter run
+```
+
+Note: `flutter clean` is needed whenever the value of `AUDIO_SESSION_MICROPHONE` changes, or whenever you switch between different projects that use audio_session with different `AUDIO_SESSION_MICROPHONE` values.
 
 ### macOS
 

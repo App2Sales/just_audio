@@ -2,6 +2,10 @@
 
 * 
 
+## 0.9.44
+
+* Add support for SwiftPM.
+
 ## 0.9.43
 
 * Fix NPE in load on iOS/macOS.
