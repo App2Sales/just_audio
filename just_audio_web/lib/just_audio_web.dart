@@ -359,6 +359,13 @@ class Html5AudioPlayer extends JustAudioPlayer {
     return SetWebCrossOriginResponse();
   }
 
+  /// Sets a specific device output id, null for default
+  @override
+  Future<SetWebSinkIdResponse> setWebSinkId(SetWebSinkIdRequest request) async {
+    await _audioElement.setSinkId(request.sinkId).toDart;
+    return SetWebSinkIdResponse();
+  }
+
   @override
   Future<SeekResponse> seek(SeekRequest request) async {
     await _seek(request.position?.inMilliseconds ?? 0, request.index);

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -65,6 +64,7 @@ class MethodChannelAudioPlayer extends AudioPlayerPlatform {
               samplingRate: event['samplingRate'] as int,
               data: event['data'] as Uint8List));
 
+  @override
   Stream<PlayerDataMessage> get playerDataMessageStream =>
       EventChannel('com.ryanheise.just_audio.data.$id')
           .receiveBroadcastStream()

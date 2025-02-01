@@ -1,3 +1,7 @@
+## 0.0.1-beta.15
+
+* Add setWebSinkId for web.
+
 ## 0.0.1-beta.14
 
 * Fix shuffleOrder when mutating ConcatenatingAudioSource (@jonmarkhall).

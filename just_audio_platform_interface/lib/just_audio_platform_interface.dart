@@ -259,6 +259,11 @@ abstract class AudioPlayerPlatform {
       SetWebCrossOriginRequest request) {
     throw UnimplementedError("setWebCrossOrigin() has not been implemented.");
   }
+
+  /// Sets a specific device output id on the web audio element.
+  Future<SetWebSinkIdResponse> setWebSinkId(SetWebSinkIdRequest request) {
+    throw UnimplementedError("setWebSinkId() has not been implemented.");
+  }
 }
 
 /// A data update communicated from the platform implementation to the Flutter
@@ -1597,3 +1602,11 @@ class SetWebCrossOriginRequest {
 class SetWebCrossOriginResponse {}
 
 enum WebCrossOriginMessage { anonymous, useCredentials }
+
+class SetWebSinkIdRequest {
+  final String sinkId;
+
+  SetWebSinkIdRequest({required this.sinkId});
+}
+
+class SetWebSinkIdResponse {}

@@ -2,6 +2,10 @@
 
 * Fix conversion between milliBel and deciBel (@Chaphasilor).
 
+## 0.9.45
+
+* Add setWebSinkId for web (@dganzella).
+
 ## 0.9.44
 
 * Add support for SwiftPM.

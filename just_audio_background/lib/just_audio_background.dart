@@ -299,6 +299,12 @@ class _JustAudioPlayer extends AudioPlayerPlatform {
   }
 
   @override
+  Future<SetWebSinkIdResponse> setWebSinkId(SetWebSinkIdRequest request) {
+    _playerAudioHandler.customSetWebSinkId(request);
+    throw SetWebSinkIdResponse();
+  }
+
+  @override
   Future<SeekResponse> seek(SeekRequest request) =>
       _playerAudioHandler.customPlayerSeek(request);
 
@@ -517,6 +523,11 @@ class _PlayerAudioHandler extends BaseAudioHandler
   Future<SetWebCrossOriginResponse> customSetWebCrossOrigin(
       SetWebCrossOriginRequest request) async {
     return await (await _player).setWebCrossOrigin(request);
+  }
+
+  Future<SetWebSinkIdResponse> customSetWebSinkId(
+      SetWebSinkIdRequest request) async {
+    return await (await _player).setWebSinkId(request);
   }
 
   Future<ConcatenatingInsertAllResponse> customConcatenatingInsertAll(
