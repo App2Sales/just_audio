@@ -596,6 +596,10 @@ class AudioPlayer {
   /// false.
   bool get allowsExternalPlayback => _allowsExternalPlayback;
 
+  /// The `crossorigin` attribute set the `<audio>` element backing this player
+  /// instance on web.
+  WebCrossOrigin? get webCrossOrigin => _webCrossOrigin;
+
   /// The current position of the player.
   Duration get position => _getPositionFor(_playbackEvent);
 
@@ -664,18 +668,14 @@ class AudioPlayer {
     StreamSubscription<Duration?>? durationSubscription;
     StreamSubscription<PlaybackEvent>? playbackEventSubscription;
     void yieldPosition(Timer timer) {
-      if (controller.isClosed) {
+      if (controller.isClosed || _durationSubject.isClosed) {
         timer.cancel();
         durationSubscription?.cancel();
         playbackEventSubscription?.cancel();
-        return;
-      }
-      if (_durationSubject.isClosed) {
-        timer.cancel();
-        durationSubscription?.cancel();
-        playbackEventSubscription?.cancel();
-        // This will in turn close _positionSubject.
-        controller.close();
+        if (!controller.isClosed) {
+          // This will in turn close _positionSubject.
+          controller.close();
+        }
         return;
       }
       if (playing) {
@@ -3870,6 +3870,30 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
       androidLoudnessEnhancerSetTargetGain(
           AndroidLoudnessEnhancerSetTargetGainRequest request) async {
     return AndroidLoudnessEnhancerSetTargetGainResponse();
+  }
+
+  @override
+  Future<AndroidEqualizerBandSetGainResponse> androidEqualizerBandSetGain(
+      AndroidEqualizerBandSetGainRequest request) async {
+    return AndroidEqualizerBandSetGainResponse();
+  }
+
+  @override
+  Future<AndroidEqualizerGetParametersResponse> androidEqualizerGetParameters(
+      AndroidEqualizerGetParametersRequest request) async {
+    return AndroidEqualizerGetParametersResponse(
+      parameters: AndroidEqualizerParametersMessage(
+        minDecibels: 0.0,
+        maxDecibels: 10.0,
+        bands: [],
+      ),
+    );
+  }
+
+  @override
+  Future<SetAllowsExternalPlaybackResponse> setAllowsExternalPlayback(
+      SetAllowsExternalPlaybackRequest request) async {
+    return SetAllowsExternalPlaybackResponse();
   }
 }
 
