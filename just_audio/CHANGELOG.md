@@ -1,6 +1,13 @@
-## 0.10.1
+## 0.10.0
 
+* New playlist API.
+* Deprecate ConcatenatingAudioSource - use playlist API instead.
+* Deprecate LoopingAudioSource - Use List.filled(N, source) instead.
+* Replace playbackEventStream.onError by errorStream.
+* Add errorCode/errorMessage to PlaybackEvent.
+* Add maxSkipsOnError constructor parameter.
 * Fix conversion between milliBel and deciBel (@Chaphasilor).
+* Bump min flutter version to 3.27.0, AGP to 8.5.2.
 
 ## 0.9.46
 

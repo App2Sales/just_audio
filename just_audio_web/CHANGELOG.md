@@ -1,3 +1,7 @@
+## 0.4.15
+
+* Support errorCode, errorMessage.
+
 ## 0.4.14
 
 * Add setWebSinkId (@dganzella).

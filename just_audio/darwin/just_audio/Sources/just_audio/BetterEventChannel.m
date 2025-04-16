@@ -31,6 +31,9 @@
 }
 
 - (void)dispose {
+    if (_eventSink) {
+        _eventSink(FlutterEndOfEventStream);
+    }
     [_eventChannel setStreamHandler:nil];
 }
 
