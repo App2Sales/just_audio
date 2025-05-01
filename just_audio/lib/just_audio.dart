@@ -134,6 +134,9 @@ class AudioPlayer {
   Future<Duration?>? _loadFuture;
   final _shuffleIndicesInv = <int>[];
 
+  final _playerEventSubject =
+      BehaviorSubject<PlayerEvent>.seeded(PlayerEvent(), sync: true);
+
   final _playbackEventSubject =
       BehaviorSubject<PlaybackEvent>.seeded(PlaybackEvent(), sync: true);
 
@@ -272,6 +275,10 @@ class AudioPlayer {
       _automaticallyWaitsToMinimizeStalling = _audioLoadConfiguration!
           .darwinLoadControl!.automaticallyWaitsToMinimizeStalling;
     }
+    _playbackEventSubject.addStream(
+        playerEventStream.map((event) => event.playbackEvent).distinct());
+    _playingSubject
+        .addStream(playerEventStream.map((event) => event.playing).distinct());
     _durationSubject.addStream(
         playbackEventStream.map((event) => event.duration).distinct());
     _processingStateSubject.addStream(
@@ -346,12 +353,10 @@ class AudioPlayer {
         .where((error) => error.code != null)
         .map((error) =>
             PlayerException(error.code!, error.message, error.index)));
-    _playerStateSubject.addStream(
-        Rx.combineLatest2<bool, PlaybackEvent, PlayerState>(
-                playingStream,
-                playbackEventStream,
-                (playing, event) => PlayerState(playing, event.processingState))
-            .distinct());
+    _playerStateSubject.addStream(playerEventStream
+        .map((event) =>
+            PlayerState(event.playing, event.playbackEvent.processingState))
+        .distinct());
     _setPlatformActive(false, force: true)
         ?.catchError((dynamic e) async => null);
     // Respond to changes to AndroidAudioAttributes configuration.
@@ -459,8 +464,14 @@ class AudioPlayer {
   /// The first [AudioSource] in the playlist, if any.
   AudioSource? get audioSource => _playlist.children.firstOrNull;
 
+  /// The latest [PlayerEvent].
+  PlayerEvent get playerEvent => _playerEventSubject.nvalue!;
+
+  /// A stream of [PlayerEvent]s.
+  Stream<PlayerEvent> get playerEventStream => _playerEventSubject.stream;
+
   /// The latest [PlaybackEvent].
-  PlaybackEvent get playbackEvent => _playbackEventSubject.nvalue!;
+  PlaybackEvent get playbackEvent => _playerEventSubject.nvalue!.playbackEvent;
 
   /// A stream of [PlaybackEvent]s.
   Stream<PlaybackEvent> get playbackEventStream => _playbackEventSubject.stream;
@@ -487,7 +498,7 @@ class AudioPlayer {
       _processingStateSubject.stream;
 
   /// Whether the player is playing.
-  bool get playing => _playingSubject.nvalue!;
+  bool get playing => _playerEventSubject.nvalue!.playing;
 
   /// A stream of changing [playing] states.
   Stream<bool> get playingStream => _playingSubject.stream;
@@ -1089,10 +1100,12 @@ class AudioPlayer {
     // Broadcast to clients immediately, but revert to false if we fail to
     // activate the audio session. This allows setAudioSource to be aware of a
     // prior play request.
-    _playingSubject.add(true);
-    _playbackEventSubject.add(playbackEvent.copyWith(
-      updatePosition: position,
-      updateTime: DateTime.now(),
+    _playerEventSubject.add(PlayerEvent(
+      playing: true,
+      playbackEvent: playbackEvent.copyWith(
+        updatePosition: position,
+        updateTime: DateTime.now(),
+      ),
     ));
     final playCompleter = Completer<dynamic>();
     final audioSession = await AudioSession.instance;
@@ -1117,7 +1130,7 @@ class AudioPlayer {
       }
     } else {
       // Revert if we fail to activate the audio session.
-      _playingSubject.add(false);
+      _playerEventSubject.add(playerEvent.copyWith(playing: false));
     }
     await playCompleter.future;
   }
@@ -1127,13 +1140,19 @@ class AudioPlayer {
   Future<void> pause() async {
     if (_disposed) return;
     if (!playing) return;
+    final stopwatch = Stopwatch();
+    stopwatch.start();
     _playInterrupted = false;
     // Update local state immediately so that queries aren't surprised.
-    _playingSubject.add(false);
-    _playbackEventSubject.add(playbackEvent.copyWith(
-      updatePosition: position,
-      updateTime: DateTime.now(),
+    _playerEventSubject.add(PlayerEvent(
+      playing: false,
+      playbackEvent: playbackEvent.copyWith(
+        updatePosition: position,
+        updateTime: DateTime.now(),
+      ),
     ));
+    // Allow propagation to secondary streams.
+    await Future<void>.delayed(Duration.zero);
     // TODO: perhaps modify platform side to ensure new state is broadcast
     // before this method returns.
     await (await _platform).pause(PauseRequest());
@@ -1165,7 +1184,7 @@ class AudioPlayer {
 
     _playInterrupted = false;
     // Update local state immediately so that queries aren't surprised.
-    _playingSubject.add(false);
+    _playerEventSubject.add(playerEvent.copyWith(playing: false));
     await future;
   }
 
@@ -1198,9 +1217,11 @@ class AudioPlayer {
   /// audio.
   Future<void> setSpeed(final double speed) async {
     if (_disposed) return;
-    _playbackEventSubject.add(playbackEvent.copyWith(
-      updatePosition: position,
-      updateTime: DateTime.now(),
+    _playerEventSubject.add(playerEvent.copyWith(
+      playbackEvent: playbackEvent.copyWith(
+        updatePosition: position,
+        updateTime: DateTime.now(),
+      ),
     ));
     _speedSubject.add(speed);
     await (await _platform).setSpeed(SetSpeedRequest(speed: speed));
@@ -1209,9 +1230,11 @@ class AudioPlayer {
   /// Sets the factor by which pitch will be shifted.
   Future<void> setPitch(final double pitch) async {
     if (_disposed) return;
-    _playbackEventSubject.add(playbackEvent.copyWith(
-      updatePosition: position,
-      updateTime: DateTime.now(),
+    _playerEventSubject.add(playerEvent.copyWith(
+      playbackEvent: playbackEvent.copyWith(
+        updatePosition: position,
+        updateTime: DateTime.now(),
+      ),
     ));
     _pitchSubject.add(pitch);
     await (await _platform).setPitch(SetPitchRequest(pitch: pitch));
@@ -1306,9 +1329,11 @@ class AudioPlayer {
         try {
           _seeking = true;
           final prevPlaybackEvent = playbackEvent;
-          _playbackEventSubject.add(prevPlaybackEvent.copyWith(
-            updatePosition: position,
-            updateTime: DateTime.now(),
+          _playerEventSubject.add(playerEvent.copyWith(
+            playbackEvent: prevPlaybackEvent.copyWith(
+              updatePosition: position,
+              updateTime: DateTime.now(),
+            ),
           ));
           _positionDiscontinuitySubject.add(PositionDiscontinuity(
               PositionDiscontinuityReason.seek,
@@ -1453,6 +1478,9 @@ class AudioPlayer {
       await _errorsSubscription?.cancel();
       await _errorsResetSubscription?.cancel();
 
+      await _playerEventSubject.close();
+
+      await Future<void>.delayed(Duration.zero);
       await _playbackEventSubject.close();
       await _sequenceStateSubject.close();
       await _playingSubject.close();
@@ -1546,7 +1574,8 @@ class AudioPlayer {
       _playerDataSubscription =
           platform.playerDataMessageStream.listen((message) {
         if (message.playing != null && message.playing != playing) {
-          _playingSubject.add(message.playing!);
+          _playerEventSubject
+              .add(playerEvent.copyWith(playing: message.playing!));
         }
         if (message.volume != null) {
           _volumeSubject.add(message.volume!);
@@ -1607,7 +1636,9 @@ class AudioPlayer {
           return;
         }
         final oldPlaybackEvent = playbackEvent;
-        _playbackEventSubject.add(newPlaybackEvent);
+        _playerEventSubject.add(playerEvent.copyWith(
+          playbackEvent: newPlaybackEvent,
+        ));
         if (playbackEvent.processingState != oldPlaybackEvent.processingState &&
             playbackEvent.processingState == ProcessingState.idle &&
             _active) {
@@ -1693,9 +1724,11 @@ class AudioPlayer {
 
       if (active) {
         if (playlist.children.isNotEmpty) {
-          _playbackEventSubject.add(playbackEvent.copyWith(
-            updatePosition: position,
-            processingState: ProcessingState.loading,
+          _playerEventSubject.add(playerEvent.copyWith(
+            playbackEvent: playbackEvent.copyWith(
+              updatePosition: position,
+              processingState: ProcessingState.loading,
+            ),
           ));
         }
 
@@ -1938,6 +1971,43 @@ class VisualizerFftCapture {
       return atan2(v2, v1);
     }
   }
+}
+
+/// Encapsulates the playback event and the playing state of the player.
+class PlayerEvent {
+  /// The current [PlaybackEvent]
+  final PlaybackEvent playbackEvent;
+
+  /// Whether the player is currently playing.
+  final bool playing;
+
+  PlayerEvent({PlaybackEvent? playbackEvent, this.playing = false})
+      : playbackEvent = playbackEvent ?? PlaybackEvent();
+
+  PlayerEvent copyWith({
+    PlaybackEvent? playbackEvent,
+    bool? playing,
+  }) =>
+      PlayerEvent(
+        playbackEvent: playbackEvent ?? this.playbackEvent,
+        playing: playing ?? this.playing,
+      );
+
+  @override
+  int get hashCode => Object.hash(
+        playbackEvent.hashCode,
+        playing,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other.runtimeType == runtimeType &&
+      other is PlayerEvent &&
+      playbackEvent == other.playbackEvent &&
+      playing == other.playing;
+
+  @override
+  String toString() => "{playbackEvent=$playbackEvent, playing=$playing}";
 }
 
 /// Encapsulates the playback state and current position of the player.
