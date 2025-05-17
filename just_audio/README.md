@@ -277,6 +277,8 @@ dependencies {
 }
 ```
 
+Note: the Android Gradle Plugin (AGP) versions 8.6 and 8.7 contain a bug that affects ExoPlayer in release mode. To avoid this, either downgrade or upgrade your AGP version.
+
 To use the visualizer, add the following permission to your `AndroidManifest.xml` file:
 
 ```xml

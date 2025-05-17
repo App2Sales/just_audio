@@ -59,6 +59,7 @@ JustAudioPlatform get _pluginPlatform {
 class AudioPlayer {
   static String _generateId() => _uuid.v4();
   final _lock = Lock();
+  Future<void>? _playbackEventPipe;
 
   /// The user agent to set on all HTTP requests.
   final String? _userAgent;
@@ -275,7 +276,7 @@ class AudioPlayer {
       _automaticallyWaitsToMinimizeStalling = _audioLoadConfiguration!
           .darwinLoadControl!.automaticallyWaitsToMinimizeStalling;
     }
-    _playbackEventSubject.addStream(
+    _playbackEventPipe = _playbackEventSubject.addStream(
         playerEventStream.map((event) => event.playbackEvent).distinct());
     _playingSubject
         .addStream(playerEventStream.map((event) => event.playing).distinct());
@@ -488,20 +489,20 @@ class AudioPlayer {
   Duration? get duration => playbackEvent.duration;
 
   /// The duration of the current audio.
-  Stream<Duration?> get durationStream => _durationSubject.stream;
+  Stream<Duration?> get durationStream => _durationSubject.stream.distinct();
 
   /// The current [ProcessingState].
   ProcessingState get processingState => playbackEvent.processingState;
 
   /// A stream of [ProcessingState]s.
   Stream<ProcessingState> get processingStateStream =>
-      _processingStateSubject.stream;
+      _processingStateSubject.stream.distinct();
 
   /// Whether the player is playing.
   bool get playing => _playerEventSubject.nvalue!.playing;
 
   /// A stream of changing [playing] states.
-  Stream<bool> get playingStream => _playingSubject.stream;
+  Stream<bool> get playingStream => _playingSubject.stream.distinct();
 
   /// The current volume of the player.
   double get volume => _volumeSubject.nvalue!;
@@ -534,14 +535,15 @@ class AudioPlayer {
 
   /// A stream of buffered positions.
   Stream<Duration> get bufferedPositionStream =>
-      _bufferedPositionSubject.stream;
+      _bufferedPositionSubject.stream.distinct();
 
   /// The latest ICY metadata received through the audio source, or `null` if no
   /// metadata is available.
   IcyMetadata? get icyMetadata => playbackEvent.icyMetadata;
 
   /// A stream of ICY metadata received through the audio source.
-  Stream<IcyMetadata?> get icyMetadataStream => _icyMetadataSubject.stream;
+  Stream<IcyMetadata?> get icyMetadataStream =>
+      _icyMetadataSubject.stream.distinct();
 
   /// The current player state containing only the processing and playing
   /// states.
@@ -702,7 +704,8 @@ class AudioPlayer {
   /// See [createPositionStream] for more control over the stream parameters.
   Stream<Duration> get positionStream {
     if (_positionSubject == null) {
-      _positionSubject = BehaviorSubject<Duration>();
+      _positionSubject =
+          BehaviorSubject<Duration>(onCancel: () => _positionSubject = null);
       if (!_disposed) {
         _positionSubject!.addStream(createPositionStream(
             steps: 800,
@@ -742,13 +745,11 @@ class AudioPlayer {
     }
 
     Timer? currentTimer;
-    StreamSubscription<Duration?>? durationSubscription;
-    StreamSubscription<PlaybackEvent>? playbackEventSubscription;
+    StreamSubscription<PlayerEvent>? playerEventSubscription;
     void yieldPosition(Timer timer) {
       if (controller.isClosed || _durationSubject.isClosed) {
         timer.cancel();
-        durationSubscription?.cancel();
-        playbackEventSubscription?.cancel();
+        playerEventSubscription?.cancel();
         if (!controller.isClosed) {
           // This will in turn close _positionSubject.
           controller.close();
@@ -760,12 +761,12 @@ class AudioPlayer {
       }
     }
 
-    durationSubscription = durationStream.listen((duration) {
-      currentTimer?.cancel();
-      currentTimer = Timer.periodic(step(), yieldPosition);
-    }, onError: (Object e, StackTrace stackTrace) {});
-    playbackEventSubscription = playbackEventStream.listen((event) {
+    playerEventSubscription = playerEventStream.listen((event) {
       controller.add(position);
+      currentTimer?.cancel();
+      if (playing) {
+        currentTimer = Timer.periodic(step(), yieldPosition);
+      }
     });
     return controller.stream.distinct();
   }
@@ -991,7 +992,7 @@ class AudioPlayer {
       _shuffleIndicesInv[shuffleIndices[i]] = i;
     }
     // Allow this event to propagate to derived streams.
-    await Future<void>.delayed(Duration.zero);
+    await currentIndexStream.firstWhere((i) => i == sequenceState.currentIndex);
   }
 
   void _registerAudioSource(AudioSource source) {
@@ -1152,7 +1153,7 @@ class AudioPlayer {
       ),
     ));
     // Allow propagation to secondary streams.
-    await Future<void>.delayed(Duration.zero);
+    await playingStream.firstWhere((p) => p == playing);
     // TODO: perhaps modify platform side to ensure new state is broadcast
     // before this method returns.
     await (await _platform).pause(PauseRequest());
@@ -1480,7 +1481,8 @@ class AudioPlayer {
 
       await _playerEventSubject.close();
 
-      await Future<void>.delayed(Duration.zero);
+      await _playbackEventPipe;
+
       await _playbackEventSubject.close();
       await _sequenceStateSubject.close();
       await _playingSubject.close();
@@ -1488,7 +1490,6 @@ class AudioPlayer {
       await _speedSubject.close();
       await _pitchSubject.close();
 
-      await Future<void>.delayed(Duration.zero);
       await _durationSubject.close();
       await _processingStateSubject.close();
       await _bufferedPositionSubject.close();
