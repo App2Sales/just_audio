@@ -765,7 +765,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         case idle:
             break;
         case loading:
-            abortExistingConnection();
+            abortExistingConnection(false);
             player.stop();
             break;
         default:
@@ -967,15 +967,17 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
     }
 
-    private void sendError(int errorCode, String errorMsg) {
-        sendError(errorCode, errorMsg, null);
+    private void sendError(int errorCode, String errorMsg, Object details) {
+        sendError(errorCode, errorMsg, details, true);
     }
 
-    private void sendError(int errorCode, String errorMsg, Object details) {
+    private void sendError(int errorCode, String errorMsg, Object details, boolean switchToIdle) {
         eventChannel.error(String.valueOf(errorCode), errorMsg, details);
         this.errorCode = errorCode;
         this.errorMessage = errorMsg;
-        processingState = ProcessingState.idle;
+        if (switchToIdle) {
+            processingState = ProcessingState.idle;
+        }
         broadcastImmediatePlaybackEvent();
         if (prepareResult != null) {
             prepareResult.error(String.valueOf(errorCode), errorMsg, details);
@@ -1073,7 +1075,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     public void dispose() {
         if (processingState == ProcessingState.loading) {
-            abortExistingConnection();
+            abortExistingConnection(true);
         }
         if (playResult != null) {
             playResult.success(new HashMap<String, Object>());
@@ -1104,8 +1106,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
     }
 
-    private void abortExistingConnection() {
-        sendError(ERROR_ABORT, "Connection aborted");
+    private void abortExistingConnection(boolean switchToIdle) {
+        sendError(ERROR_ABORT, "Connection aborted", null, switchToIdle);
     }
 
     // Dart can't distinguish between int sizes so
